@@ -1,0 +1,126 @@
+library(DESeq2)
+
+altflw1<-read.table(file="altflw1.stats", row.names = 1,sep = "\t")
+altflw2<-read.table(file="altflw2.stats", row.names = 1,sep = "\t")
+altflw3<-read.table(file="altflw3.stats", row.names = 1,sep = "\t")
+altveg1<-read.table(file="altveg1.stats", row.names = 1,sep = "\t")
+altveg2<-read.table(file="altveg2.stats", row.names = 1,sep = "\t")
+altveg3<-read.table(file="altveg3.stats", row.names = 1,sep = "\t")
+
+names(altflw1)<-c("len","altflw1", "un")
+names(altflw2)<-c("len","altflw2", "un")
+names(altflw3)<-c("len","altflw3", "un")
+names(altveg1)<-c("len","altveg1", "un")
+names(altveg2)<-c("len","altveg2", "un")
+names(altveg3)<-c("len","altveg3", "un")
+head(altveg3)
+
+altflw1<- altflw1[,c(1,2)]
+altflw2<- altflw2[,c(1,2)]
+altflw3<- altflw3[,c(1,2)]
+altveg1<- altveg1[,c(1,2)]
+altveg2<- altveg2[,c(1,2)]
+altveg3<- altveg3[,c(1,2)]
+
+
+P<-merge(altflw1, altflw2, by="row.names")
+P<- P[-1,]
+head(P)
+row.names(P)<-P[,1]
+P<-P[,-1]
+head(P)
+
+Q<-merge(P, altflw3, by="row.names")
+row.names(Q)<-Q[,1]
+Q<-Q[,-1]
+head(Q)
+
+R<-merge(Q, altveg1, by="row.names")
+row.names(R)<-R[,1]
+R<-R[,-1]
+head(R)
+
+S<-merge(R, altveg2, by="row.names")
+row.names(S)<-S[,1]
+S<-S[,-1]
+head(S)
+
+T<-merge(S, altveg3, by="row.names")
+row.names(T)<-T[,1]
+T<-T[,-1]
+head(T)
+
+alt_table1<-T[,c(2,4,6,8,10,12)]
+head(alt_table1)
+
+(condition <- factor(c(rep("altflw", 3), rep("altveg", 3))))
+
+library(DESeq2)
+library("vctrs")
+
+(coldata <- data.frame(row.names=colnames(alt_table1), condition))
+dds <- DESeqDataSetFromMatrix(countData=alt_table1, colData=coldata, design=~condition)
+
+dds
+
+dds <- DESeq(dds)
+
+# Get differential expression results
+
+res2 <- results(dds, contrast=c("condition","altflw","altveg"))
+head(res2)
+
+mcols(res2, use.names=TRUE)
+
+summary(res2)
+
+padj.cutoff <- 0.05
+lfc.cutoff <- 1
+
+A<-subset(res2, padj < padj.cutoff & abs(log2FoldChange) > lfc.cutoff)
+head(A)
+summary(subset(res2, padj < padj.cutoff & abs(log2FoldChange) > lfc.cutoff))
+
+## Merge with normalized count data
+
+data1 <- merge(as.data.frame(A), as.data.frame(counts(dds, normalized=TRUE)), by="row.names", sort=FALSE)
+
+names(data1)[1] <- "Gene"
+
+head(data1)
+
+
+## Write results
+
+write.csv(data1, file="signf_expddata.csv")
+
+#to get sequence from the trinity.fasta
+source("http://bioconductor.org/biocLite.R")
+biocLite("Biostrings")
+library(Biostrings)
+DEgenes<-read.csv("signf_expddata.csv", stringsAsFactors = FALSE)
+head(DEgenes)
+
+# read in the fasta file
+fasta <- readDNAStringSet("Trinity.fasta")
+head(fasta)
+fasta_names<-names(fasta)
+head(fasta_names)
+seq_names1<-names(fasta)
+seq_names1<-unlist(lapply(seq_names1,function (x) strsplit(x, " ")[[1]][1]))
+names(fasta)<-seq_names1
+head(names(fasta))
+
+DEgenesseq<-fasta[unlist(DEgenes$Gene)]
+
+matching_gene <- fasta[unlist(DEgenes$Gene)]
+length(matching_gene)
+dim(DEgenesseq)
+
+write.csv(as.data.frame(matching_gene), "DEgenes_Seq.csv",
+          row.names = TRUE, quote = F)
+
+
+
+
+
